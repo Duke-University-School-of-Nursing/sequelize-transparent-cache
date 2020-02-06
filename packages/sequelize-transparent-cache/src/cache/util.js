@@ -54,16 +54,28 @@ function restoreTimestamps (data, instance) {
   })
 }
 
-function generateInclude (model) {
-  return Object.entries(model.associations || [])
-    .filter(([as, association]) => {
-      const hasOptions = Object.prototype.hasOwnProperty.call(association, 'options')
-      return hasOptions
+function generateInclude (model, depth = 1) {
+  const associations = [];
+  if (Object.keys(model.associations).length > 0 && depth <= 5) {
+    Object.keys(model.associations).forEach((key) => {
+      const association = model.associations[key];
+      let modelName;
+      if (model.sequelize.isDefined(association.target.name)) {
+        modelName = association.target.name;
+      } else {
+        return;
+      }
+      const target = model.sequelize.model(modelName)
+      // we have to do this to get scopes to work
+      target._injectScope({});
+      associations.push({
+        model: target,
+        as: association.associationAccessor,
+        include: generateInclude(target, depth + 1)
+      })
     })
-    .map(([as, association]) => ({
-      model: model.sequelize.model(association.target.name),
-      as
-    }))
+  }
+  return associations;
 }
 
 module.exports = {
